@@ -40,8 +40,8 @@ const PianoKey = memo(({
     const base = "relative rounded-b-md transition-all duration-100 cursor-pointer select-none touch-manipulation";
     
     const typeClasses = keyData.type === 'white'
-      ? "w-10 sm:w-10 md:w-12 h-32 sm:h-32 md:h-40 -mx-[1px] sm:-mx-[2px] z-0 bg-zinc-100 border-b-4 border-zinc-300 hover:bg-zinc-200 active:bg-zinc-200 active:scale-y-[0.98]"
-      : "w-6 sm:w-6 md:w-8 h-20 sm:h-20 md:h-24 -mx-[12px] sm:-mx-[12px] md:-mx-[16px] z-10 bg-zinc-900 border-b-4 border-black hover:bg-zinc-800 active:bg-zinc-800 active:scale-y-[0.98]";
+      ? "w-[calc((100vw-32px)/8)] min-w-[32px] max-w-[48px] sm:w-10 md:w-12 h-28 sm:h-32 md:h-40 -mx-[1px] sm:-mx-[2px] z-0 bg-zinc-100 border-b-4 border-zinc-300 hover:bg-zinc-200 active:bg-zinc-200 active:scale-y-[0.98]"
+      : "w-[calc((100vw-32px)/13)] min-w-[20px] max-w-[32px] sm:w-6 md:w-8 h-16 sm:h-20 md:h-24 -mx-[calc((100vw-32px)/26)] sm:-mx-[12px] md:-mx-[16px] z-10 bg-zinc-900 border-b-4 border-black hover:bg-zinc-800 active:bg-zinc-800 active:scale-y-[0.98]";
 
     const stateClasses = cn(
       isInput && !isOutput && "!bg-blue-500 !border-blue-700 mt-1 shadow-[inset_0_-5px_10px_rgba(0,0,0,0.3)] scale-[0.98]",
@@ -266,8 +266,8 @@ const NegativeHarmonyPiano = memo(({
             </button>
           </div>
 
-          <div className="flex justify-center select-none pb-6 overflow-x-auto">
-            <div className="flex">
+          <div className="flex justify-center select-none pb-6 overflow-x-auto w-full">
+            <div className="flex justify-center w-full sm:w-auto">
               {activeKeys.map((k, i) => {
                 const { isInput, isOutput } = getKeyState(k.note);
                 
