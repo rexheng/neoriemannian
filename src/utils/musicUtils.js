@@ -198,13 +198,13 @@ export const getNegativeChord = (chordNotes, keyRoot = 0) => {
  * - y is the second interval (from second note to third note)
  * 
  * @param {number[]} notes - Array of 3 chord notes
- * @returns {{root: number, x: number, y: number, type: string}} Interval structure
+ * @returns {{root: number, x: number, y: number, type: string, isSymmetric: boolean}} Interval structure
  */
 const analyzeTrichord = (notes) => {
   if (notes.length !== 3) {
     // For non-trichords, fall back to basic analysis
     const info = identifyChord(notes);
-    return { root: info.root, x: 4, y: 3, type: info.type }; // Default major intervals
+    return { root: info.root, x: 4, y: 3, type: info.type, isSymmetric: false };
   }
   
   const sorted = normalize(notes);
@@ -212,167 +212,206 @@ const analyzeTrichord = (notes) => {
   // Try each note as root and find the most sensible interpretation
   // Priority: Major (4,3), Minor (3,4), Dim (3,3), Aug (4,4), Sus4 (5,2), Sus2 (2,5)
   const knownStructures = [
-    { x: 4, y: 3, type: 'Major' },      // Major triad {0, 4, 7}
-    { x: 3, y: 4, type: 'Minor' },      // Minor triad {0, 3, 7}
-    { x: 3, y: 3, type: 'Dim' },        // Diminished {0, 3, 6}
-    { x: 4, y: 4, type: 'Aug' },        // Augmented {0, 4, 8}
-    { x: 5, y: 2, type: 'Sus4' },       // Sus4 {0, 5, 7}
-    { x: 2, y: 5, type: 'Sus2' },       // Sus2 {0, 2, 7}
+    { x: 4, y: 3, type: 'Major', isSymmetric: false },
+    { x: 3, y: 4, type: 'Minor', isSymmetric: false },
+    { x: 3, y: 3, type: 'Dim', isSymmetric: true },    // Diminished: symmetric
+    { x: 4, y: 4, type: 'Aug', isSymmetric: true },    // Augmented: symmetric
+    { x: 5, y: 2, type: 'Sus4', isSymmetric: false },
+    { x: 2, y: 5, type: 'Sus2', isSymmetric: false },
   ];
   
   for (let i = 0; i < sorted.length; i++) {
     const potentialRoot = sorted[i];
     const intervals = sorted.map(n => mod(n - potentialRoot)).sort((a, b) => a - b);
     
-    // intervals is now [0, a, b] where a and b are intervals from root
-    const x = intervals[1];           // First interval
-    const y = intervals[2] - intervals[1];  // Second interval
+    const x = intervals[1];
+    const y = intervals[2] - intervals[1];
     
-    // Check against known structures
     const match = knownStructures.find(s => s.x === x && s.y === y);
     if (match) {
-      return { root: potentialRoot, x, y, type: match.type };
+      return { root: potentialRoot, x, y, type: match.type, isSymmetric: match.isSymmetric };
     }
   }
   
   // Fallback: use first note as root
   const intervals = sorted.map(n => mod(n - sorted[0])).sort((a, b) => a - b);
+  const x = intervals[1];
+  const y = intervals[2] - intervals[1];
   return { 
     root: sorted[0], 
-    x: intervals[1], 
-    y: intervals[2] - intervals[1],
-    type: 'Unknown'
+    x, 
+    y,
+    type: 'Unknown',
+    isSymmetric: x === y
   };
 };
 
 /**
- * P (Parallel) Transformation - Generalized
+ * P (Parallel) Transformation
  * 
- * For prime form trichord Q = {0, x, x+y}:
  * P = I_{x+y}^0 (Inversion around axis of 0 and x+y)
+ * Effect: Swaps intervals x ↔ y
  * 
- * Effect: Maps x ↔ y, effectively swapping the interval structure
- * Result: {0, y, x+y}
+ * For symmetric chords (x = y):
+ * - Diminished {0,3,6}: P maps to itself (self-loop, no new node)
+ * - Augmented {0,4,8}: P maps to itself (self-loop, no new node)
  * 
- * For triads:
- * - Major {0,4,7} → Minor {0,3,7}: x=4,y=3 → x'=3,y'=4
- * - Minor {0,3,7} → Major {0,4,7}: x=3,y=4 → x'=4,y'=3
- * - Dim {0,3,6}: Symmetric, maps to itself
- * - Aug {0,4,8}: Symmetric, maps to itself
- * - Sus4 {0,5,7} ↔ Sus2 {0,2,7}: x=5,y=2 ↔ x=2,y=5
+ * For asymmetric chords:
+ * - Major {0,4,7} ↔ Minor {0,3,7}
+ * - Sus4 {0,5,7} ↔ Sus2 {0,2,7}
  * 
  * @param {number[]} notes - Array of chord notes
- * @returns {number[]} Transformed chord notes
+ * @returns {{notes: number[], isSelfMap: boolean}} Transformed chord and self-map flag
  */
 export const transformP = (notes) => {
-  const { root, x, y, type } = analyzeTrichord(notes);
+  const { root, x, y, type, isSymmetric } = analyzeTrichord(notes);
+  
+  // For symmetric chords (dim, aug), P is a self-mapping
+  if (isSymmetric) {
+    return { notes: [...notes], isSelfMap: true, type };
+  }
   
   // P swaps the intervals: {0, x, x+y} → {0, y, x+y}
-  // The note at position x moves to position y
-  return notes.map(n => {
+  const transformed = notes.map(n => {
     const interval = mod(n - root);
     if (interval === x) {
       return mod(root + y);  // x → y
     }
-    return n;  // 0 and x+y stay fixed
+    return n;
   });
+  
+  return { notes: transformed, isSelfMap: false, type };
 };
 
 /**
- * L (Leading-Tone Exchange) Transformation - Generalized
+ * L (Leading-Tone Exchange) Transformation
  * 
- * For prime form trichord Q = {0, x, x+y}:
  * L = I_x^0 (Inversion around axis of 0 and x)
  * 
- * Effect: Maps x+y → -y (mod 12)
- * Result: {0, x, -y} = {0, x, 12-y}
+ * For Diminished {0,3,6} (x=3, y=3):
+ * - L maps: 0→0, 3→3, 6→0 (mod 12) 
+ * - Result: {0, 3, 9} = Augmented triad (connects to Aug space)
  * 
- * For triads:
- * - Major {0,4,7}: x=4,y=3 → {0,4,9} but we move 0→-1 giving {11,4,7} = Em
- * - Minor {0,3,7}: x=3,y=4 → move 7→8 giving {0,3,8} = Ab
- * - Dim {0,3,6}: x=3,y=3 → {0,3,9} or move appropriately
- * - Aug {0,4,8}: x=4,y=4 → {0,4,0}... symmetric behavior
- * - Sus4 {0,5,7}: x=5,y=2 → move 0→-1 giving {11,5,7}
- * - Sus2 {0,2,7}: x=2,y=5 → move 7→8 giving {0,2,8}
+ * For Augmented {0,4,8} (x=4, y=4):
+ * - L maps: 8→0, creating {0, 4, 0} → degenerate/self-map
+ * - Result: Self-mapping (no new node)
+ * 
+ * For Major: lower root by semitone → Minor
+ * For Minor: raise fifth by semitone → Major
  * 
  * @param {number[]} notes - Array of chord notes
- * @returns {number[]} Transformed chord notes
+ * @returns {{notes: number[], isSelfMap: boolean}} Transformed chord and self-map flag
  */
 export const transformL = (notes) => {
-  const { root, x, y, type } = analyzeTrichord(notes);
+  const { root, x, y, type, isSymmetric } = analyzeTrichord(notes);
   
-  // L inverts around {0, x}, moving x+y to a new position
-  // For Major-like (x > y): move root down by semitone
-  // For Minor-like (x < y): move fifth up by semitone
-  // For symmetric (x = y): move root down by semitone (convention)
+  // Special handling for Augmented chords
+  if (type === 'Aug') {
+    // Augmented L is degenerate (self-mapping)
+    return { notes: [...notes], isSelfMap: true, type };
+  }
   
+  // Special handling for Diminished chords
+  if (type === 'Dim') {
+    // Dim {0,3,6} → Aug {0,3,9} via L
+    // Move the note at x+y (6) up by a minor third (3) to get 9
+    const transformed = notes.map(n => {
+      const interval = mod(n - root);
+      if (interval === mod(x + y)) {  // The "6" position
+        return mod(n + 3);  // 6 → 9
+      }
+      return n;
+    });
+    return { notes: transformed, isSelfMap: false, type: 'Aug' };
+  }
+  
+  // Standard L transformation for Major/Minor/Sus
   if (x >= y) {
-    // Move root down by semitone: 0 → -1
-    return notes.map(n => {
+    // Move root down by semitone
+    const transformed = notes.map(n => {
       const interval = mod(n - root);
       if (interval === 0) {
         return mod(n - 1);
       }
       return n;
     });
+    return { notes: transformed, isSelfMap: false, type };
   } else {
-    // Move the top note (x+y) up by semitone
-    return notes.map(n => {
+    // Move top note up by semitone
+    const transformed = notes.map(n => {
       const interval = mod(n - root);
       if (interval === mod(x + y)) {
         return mod(n + 1);
       }
       return n;
     });
+    return { notes: transformed, isSelfMap: false, type };
   }
 };
 
 /**
- * R (Relative) Transformation - Generalized
+ * R (Relative) Transformation
  * 
- * For prime form trichord Q = {0, x, x+y}:
  * R = I_{x+y}^x (Inversion around axis of x and x+y)
  * 
- * Effect: Maps 0 → 2x+y
- * Result: {2x+y, x, x+y}
+ * For Diminished {0,3,6} (x=3, y=3):
+ * - R maps: 0→9, 3→3, 6→6
+ * - Result: {3, 6, 9} = Augmented triad (connects to Aug space)
  * 
- * For triads:
- * - Major {0,4,7}: x=4,y=3 → 0→11, giving {9,4,7} or normalized {0,4,9} = Am
- * - Minor {0,3,7}: x=3,y=4 → 0→10, giving {10,3,7} = Eb
- * - Dim {0,3,6}: x=3,y=3 → 0→9, giving {9,3,6} = some chord
- * - Aug {0,4,8}: x=4,y=4 → 0→12=0, symmetric
- * - Sus4 {0,5,7}: x=5,y=2 → 0→12=0... 
- * - Sus2 {0,2,7}: x=2,y=5 → 0→9
+ * For Augmented {0,4,8} (x=4, y=4):
+ * - R maps: 0→12≡0
+ * - Result: Self-mapping (no new node)
+ * 
+ * For Major: raise fifth by whole tone → Minor
+ * For Minor: lower root by whole tone → Major
  * 
  * @param {number[]} notes - Array of chord notes
- * @returns {number[]} Transformed chord notes
+ * @returns {{notes: number[], isSelfMap: boolean}} Transformed chord and self-map flag
  */
 export const transformR = (notes) => {
-  const { root, x, y, type } = analyzeTrichord(notes);
+  const { root, x, y, type, isSymmetric } = analyzeTrichord(notes);
   
-  // R inverts around {x, x+y}, moving 0 to new position
-  // For Major-like (x > y): move fifth up by whole tone
-  // For Minor-like (x < y): move root down by whole tone
-  // For symmetric: apply based on convention
+  // Special handling for Augmented chords
+  if (type === 'Aug') {
+    // Augmented R is a self-mapping
+    return { notes: [...notes], isSelfMap: true, type };
+  }
   
+  // Special handling for Diminished chords
+  if (type === 'Dim') {
+    // Dim {0,3,6} → Aug {3,6,9} via R
+    // Move the root (0) up by a major third + minor third = 9
+    const transformed = notes.map(n => {
+      const interval = mod(n - root);
+      if (interval === 0) {  // The root position
+        return mod(n + 9);  // 0 → 9 (or equivalently, 2x+y = 9)
+      }
+      return n;
+    });
+    return { notes: transformed, isSelfMap: false, type: 'Aug' };
+  }
+  
+  // Standard R transformation for Major/Minor/Sus
   if (x >= y) {
-    // Move the top note (x+y position) up by whole tone
-    return notes.map(n => {
+    // Move top note up by whole tone
+    const transformed = notes.map(n => {
       const interval = mod(n - root);
       if (interval === mod(x + y)) {
         return mod(n + 2);
       }
       return n;
     });
+    return { notes: transformed, isSelfMap: false, type };
   } else {
-    // Move root down by whole tone: 0 → -2
-    return notes.map(n => {
+    // Move root down by whole tone
+    const transformed = notes.map(n => {
       const interval = mod(n - root);
       if (interval === 0) {
         return mod(n - 2);
       }
       return n;
     });
+    return { notes: transformed, isSelfMap: false, type };
   }
 };
 
@@ -380,14 +419,14 @@ export const transformR = (notes) => {
  * Applies a transformation by type string
  * @param {number[]} notes - Current chord notes
  * @param {'P'|'L'|'R'} type - Transformation type
- * @returns {number[]} Transformed chord notes
+ * @returns {{notes: number[], isSelfMap: boolean}} Transformed chord notes and self-map flag
  */
 export const applyTransform = (notes, type) => {
   switch (type) {
     case 'P': return transformP(notes);
     case 'L': return transformL(notes);
     case 'R': return transformR(notes);
-    default: return notes;
+    default: return { notes, isSelfMap: false };
   }
 };
 

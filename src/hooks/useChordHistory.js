@@ -50,9 +50,24 @@ export const useChordHistory = () => {
   /**
    * Applies a transformation and updates history
    * @param {'P'|'L'|'R'} transformType - Type of transformation
+   * @returns {Object|null} New node if created, null if self-mapping
    */
   const applyTransformation = useCallback((transformType) => {
-    const newNotes = applyTransform(currentChord, transformType);
+    const result = applyTransform(currentChord, transformType);
+    const newNotes = result.notes;
+    const isSelfMap = result.isSelfMap;
+    
+    // If it's a self-mapping (symmetric chord like dim/aug with P), don't create a new node
+    if (isSelfMap) {
+      // Just return the current node info for audio playback
+      return { 
+        notes: currentChord, 
+        isSelfMap: true,
+        label: chordInfo.label,
+        type: chordInfo.type
+      };
+    }
+    
     const newInfo = identifyChord(newNotes);
     const prevNode = history[history.length - 1];
 
@@ -93,7 +108,7 @@ export const useChordHistory = () => {
     }));
 
     return newNode;
-  }, [currentChord, history, edges, viewBox, chordInfo.type]);
+  }, [currentChord, history, edges, viewBox, chordInfo]);
 
   /**
    * Undoes the last transformation
