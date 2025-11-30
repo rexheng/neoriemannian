@@ -11,7 +11,7 @@ import { parseChordString, getNegativeChord, identifyChord } from '../utils/musi
 import { Card, CardHeader, CardTitle, CardContent } from './ui/Card';
 import Button from './ui/Button';
 import Badge from './ui/Badge';
-import { Textarea, Select, Separator } from './ui/Form';
+import { Textarea, Select, SelectTrigger, SelectContent, SelectItem, Separator } from './ui/Form';
 import { 
   RefreshCcw, 
   Calculator, 
@@ -60,25 +60,42 @@ KeySelector.propTypes = {
 /**
  * Preset progression selector
  */
-const PresetSelector = memo(({ onSelect }) => (
-  <Select 
-    onChange={(e) => onSelect(e.target.value)}
-    className="bg-zinc-900/50 border-zinc-800"
-    defaultValue=""
-  >
-    <option value="" disabled>{STRINGS.PRESET_SELECT}</option>
-    {PRESET_PROGRESSIONS.map((preset, i) => (
-      <option key={i} value={preset.chords}>
-        {preset.name} - {preset.description}
-      </option>
-    ))}
-  </Select>
-));
+const PresetSelector = memo(({ onSelect, selectedPreset }) => {
+  // Find the name of the selected preset for display
+  const selectedName = useMemo(() => {
+    if (!selectedPreset) return null;
+    const preset = PRESET_PROGRESSIONS.find(p => p.chords === selectedPreset);
+    return preset ? preset.name : null;
+  }, [selectedPreset]);
+
+  return (
+    <Select 
+      value={selectedPreset || ""}
+      onValueChange={onSelect}
+      className="w-full"
+    >
+      <SelectTrigger className="bg-zinc-900/50 border-zinc-800">
+        <span className={selectedName ? "text-zinc-200" : "text-zinc-400"}>
+          {selectedName || STRINGS.PRESET_SELECT}
+        </span>
+      </SelectTrigger>
+      <SelectContent>
+        {PRESET_PROGRESSIONS.map((preset, i) => (
+          <SelectItem key={i} value={preset.chords}>
+            <span className="font-medium">{preset.name}</span>
+            <span className="text-zinc-500 ml-2">- {preset.description}</span>
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+});
 
 PresetSelector.displayName = 'PresetSelector';
 
 PresetSelector.propTypes = {
   onSelect: PropTypes.func.isRequired,
+  selectedPreset: PropTypes.string,
 };
 
 /**
@@ -120,13 +137,16 @@ ChordResult.propTypes = {
 const ChordProgressionConverter = memo(({ 
   keyRoot,
   onKeyChange,
-  onPlayProgression,
-  isPlaying,
+  onPlayOriginal,
+  onPlayNegative,
+  isPlayingOriginal,
+  isPlayingNegative,
   playingIndex,
   className 
 }) => {
   const [progInput, setProgInput] = useState("Cmaj7 Am9 Dm7 G7");
   const [progOutput, setProgOutput] = useState([]);
+  const [selectedPreset, setSelectedPreset] = useState(null);
   
   /**
    * Converts the input progression to negative harmony
@@ -159,6 +179,7 @@ const ChordProgressionConverter = memo(({
    */
   const handlePresetSelect = useCallback((preset) => {
     setProgInput(preset);
+    setSelectedPreset(preset);
   }, []);
 
   /**
@@ -170,14 +191,24 @@ const ChordProgressionConverter = memo(({
   );
 
   /**
-   * Handles play button click
+   * Handles play original progression
    */
-  const handlePlay = useCallback(() => {
+  const handlePlayOriginal = useCallback(() => {
+    if (progOutput.length > 0) {
+      const chords = progOutput.map(p => p.notes).filter(n => n.length > 0);
+      onPlayOriginal?.(chords);
+    }
+  }, [progOutput, onPlayOriginal]);
+
+  /**
+   * Handles play negative progression
+   */
+  const handlePlayNegative = useCallback(() => {
     if (progOutput.length > 0) {
       const chords = progOutput.map(p => p.negNotes).filter(n => n.length > 0);
-      onPlayProgression?.(chords);
+      onPlayNegative?.(chords);
     }
-  }, [progOutput, onPlayProgression]);
+  }, [progOutput, onPlayNegative]);
 
   return (
     <div className={cn(
@@ -202,7 +233,7 @@ const ChordProgressionConverter = memo(({
           </div>
 
           {/* Preset selector */}
-          <PresetSelector onSelect={handlePresetSelect} />
+          <PresetSelector onSelect={handlePresetSelect} selectedPreset={selectedPreset} />
 
           {/* Manual input */}
           <Textarea
@@ -223,18 +254,31 @@ const ChordProgressionConverter = memo(({
               <RefreshCcw className="mr-2 h-4 w-4" /> 
               {STRINGS.CONVERT_PROGRESSION}
             </Button>
-            
-            {progOutput.length > 0 && (
-              <Button
-                onClick={handlePlay}
-                variant={isPlaying ? "destructive" : "secondary"}
-                size="icon"
-                disabled={!onPlayProgression}
-              >
-                {isPlaying ? <Square size={16} /> : <Play size={16} />}
-              </Button>
-            )}
           </div>
+
+          {/* Playback buttons */}
+          {progOutput.length > 0 && (
+            <div className="flex gap-2">
+              <Button
+                onClick={handlePlayOriginal}
+                variant={isPlayingOriginal ? "destructive" : "secondary"}
+                className="flex-1"
+                disabled={!onPlayOriginal}
+              >
+                {isPlayingOriginal ? <Square size={14} className="mr-2" /> : <Play size={14} className="mr-2" />}
+                Original
+              </Button>
+              <Button
+                onClick={handlePlayNegative}
+                variant={isPlayingNegative ? "destructive" : "outline"}
+                className="flex-1 border-emerald-700 text-emerald-400 hover:bg-emerald-950/50"
+                disabled={!onPlayNegative}
+              >
+                {isPlayingNegative ? <Square size={14} className="mr-2" /> : <Play size={14} className="mr-2" />}
+                Negative
+              </Button>
+            </div>
+          )}
         </div>
 
         {/* Output */}
@@ -277,8 +321,10 @@ ChordProgressionConverter.displayName = 'ChordProgressionConverter';
 ChordProgressionConverter.propTypes = {
   keyRoot: PropTypes.number.isRequired,
   onKeyChange: PropTypes.func.isRequired,
-  onPlayProgression: PropTypes.func,
-  isPlaying: PropTypes.bool,
+  onPlayOriginal: PropTypes.func,
+  onPlayNegative: PropTypes.func,
+  isPlayingOriginal: PropTypes.bool,
+  isPlayingNegative: PropTypes.bool,
   playingIndex: PropTypes.number,
   className: PropTypes.string,
 };

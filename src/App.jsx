@@ -149,18 +149,43 @@ const NegativeHarmonyMode = React.memo(({
 }) => {
   const { playProgression, isPlaying, stopAll } = audio;
   const [playingIndex, setPlayingIndex] = useState(-1);
+  const [playingType, setPlayingType] = useState(null); // 'original' or 'negative'
 
-  // Handle progression playback
-  const handlePlayProgression = useCallback((chords) => {
-    if (isPlaying) {
+  // Handle original progression playback
+  const handlePlayOriginal = useCallback((chords) => {
+    if (isPlaying && playingType === 'original') {
       stopAll();
       setPlayingIndex(-1);
+      setPlayingType(null);
     } else {
+      if (isPlaying) stopAll();
+      setPlayingType('original');
       playProgression(chords, 100, (index) => {
+        if (index === -1) {
+          setPlayingType(null);
+        }
         setPlayingIndex(index);
       });
     }
-  }, [isPlaying, playProgression, stopAll]);
+  }, [isPlaying, playingType, playProgression, stopAll]);
+
+  // Handle negative progression playback
+  const handlePlayNegative = useCallback((chords) => {
+    if (isPlaying && playingType === 'negative') {
+      stopAll();
+      setPlayingIndex(-1);
+      setPlayingType(null);
+    } else {
+      if (isPlaying) stopAll();
+      setPlayingType('negative');
+      playProgression(chords, 100, (index) => {
+        if (index === -1) {
+          setPlayingType(null);
+        }
+        setPlayingIndex(index);
+      });
+    }
+  }, [isPlaying, playingType, playProgression, stopAll]);
 
   return (
     <div className="flex-1 flex flex-col md:flex-row w-full h-full min-h-0">
@@ -168,8 +193,10 @@ const NegativeHarmonyMode = React.memo(({
         <ChordProgressionConverter
           keyRoot={negKey}
           onKeyChange={setNegKey}
-          onPlayProgression={handlePlayProgression}
-          isPlaying={isPlaying}
+          onPlayOriginal={handlePlayOriginal}
+          onPlayNegative={handlePlayNegative}
+          isPlayingOriginal={isPlaying && playingType === 'original'}
+          isPlayingNegative={isPlaying && playingType === 'negative'}
           playingIndex={playingIndex}
         />
       </Suspense>

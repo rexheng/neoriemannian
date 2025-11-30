@@ -181,7 +181,7 @@ export const CHORD_COLOURS = {
 // ============================================================================
 
 export const STRINGS = {
-  APP_TITLE: 'Neo-Riemannian Explorer',
+  APP_TITLE: "Rex's Neo-Riemannian Thing",
   MODE_TONNETZ: 'Transformations',
   MODE_NEGATIVE: 'Negative Harmony',
   CURRENT_CHORD: 'Current Chord',

@@ -113,30 +113,71 @@ export const useAudio = (options = {}) => {
   }, [resumeAudio, volume]);
 
   /**
-   * Plays a chord (multiple notes simultaneously)
+   * Plays a chord (multiple notes simultaneously) at a specific time
    * @param {number[]} notes - Array of note values
    * @param {number} octave - Base octave
    * @param {number} duration - Duration in seconds
+   * @param {number} startTime - AudioContext time to start (optional)
    */
-  const playChord = useCallback(async (notes, octave = 4, duration = AUDIO_DEFAULTS.noteDuration) => {
+  const playChord = useCallback(async (notes, octave = 4, duration = AUDIO_DEFAULTS.noteDuration, startTime = null) => {
+    const ctx = await resumeAudio();
+    if (!ctx) return () => {};
+    
     setIsPlaying(true);
     
-    const stopFunctions = await Promise.all(
-      notes.map((note, i) => {
-        // Spread notes across octaves if needed
-        const noteOctave = octave + Math.floor(i / 4);
-        return playNote(note, noteOctave, duration);
-      })
-    );
+    const now = startTime !== null ? startTime : ctx.currentTime;
+    const { attackTime, decayTime, sustainLevel, releaseTime } = AUDIO_DEFAULTS;
+    
+    const oscillators = notes.map((note, i) => {
+      // Spread notes across octaves if needed
+      const noteOctave = octave + Math.floor(i / 4);
+      const frequency = getNoteFrequency(note, noteOctave);
+      
+      const oscillator = ctx.createOscillator();
+      const noteGain = ctx.createGain();
+      
+      oscillator.type = 'sine';
+      oscillator.frequency.value = frequency;
+      
+      // ADSR envelope
+      noteGain.gain.setValueAtTime(0, now);
+      noteGain.gain.linearRampToValueAtTime(volume, now + attackTime);
+      noteGain.gain.linearRampToValueAtTime(sustainLevel * volume, now + attackTime + decayTime);
+      noteGain.gain.setValueAtTime(sustainLevel * volume, now + duration - releaseTime);
+      noteGain.gain.linearRampToValueAtTime(0, now + duration);
+      
+      oscillator.connect(noteGain);
+      noteGain.connect(gainNodeRef.current);
+      
+      oscillator.start(now);
+      oscillator.stop(now + duration + 0.1);
+      
+      activeOscillatorsRef.current.push(oscillator);
+      
+      oscillator.onended = () => {
+        activeOscillatorsRef.current = activeOscillatorsRef.current.filter(o => o !== oscillator);
+        if (activeOscillatorsRef.current.length === 0) {
+          setIsPlaying(false);
+        }
+      };
+      
+      return oscillator;
+    });
 
     return () => {
-      stopFunctions.forEach(stop => stop());
+      oscillators.forEach(osc => {
+        try {
+          osc.stop();
+        } catch (e) {
+          // Already stopped
+        }
+      });
       setIsPlaying(false);
     };
-  }, [playNote]);
+  }, [resumeAudio, volume]);
 
   /**
-   * Plays a chord progression
+   * Plays a chord progression with precise timing using Web Audio scheduler
    * @param {Array<number[]>} progression - Array of chord note arrays
    * @param {number} tempo - BPM
    * @param {Function} onChordChange - Callback when chord changes
@@ -148,30 +189,54 @@ export const useAudio = (options = {}) => {
     setIsPlaying(true);
     
     const beatDuration = 60 / tempo;
-    let currentIndex = 0;
-    let timeoutId = null;
+    const chordDuration = beatDuration * 0.9; // 90% of beat for legato feel
+    const startTime = ctx.currentTime + 0.05; // Small buffer for scheduling
+    
     let stopped = false;
+    const scheduledTimeouts = [];
 
-    const playNext = async () => {
-      if (stopped || currentIndex >= progression.length) {
-        setIsPlaying(false);
-        return;
-      }
-
-      const chord = progression[currentIndex];
-      onChordChange?.(currentIndex, chord);
-      await playChord(chord, 4, beatDuration * 0.9);
+    // Schedule all chords at precise times using audioContext.currentTime
+    progression.forEach((chord, index) => {
+      const chordStartTime = startTime + (index * beatDuration);
       
-      currentIndex++;
-      timeoutId = setTimeout(playNext, beatDuration * 1000);
-    };
+      // Schedule the chord to play at exact time
+      playChord(chord, 4, chordDuration, chordStartTime);
+      
+      // Schedule UI callback slightly before the audio plays
+      const uiDelay = (chordStartTime - ctx.currentTime) * 1000;
+      const timeoutId = setTimeout(() => {
+        if (!stopped) {
+          onChordChange?.(index, chord);
+        }
+      }, Math.max(0, uiDelay));
+      
+      scheduledTimeouts.push(timeoutId);
+    });
 
-    playNext();
+    // Schedule end of playback
+    const totalDuration = progression.length * beatDuration;
+    const endTimeoutId = setTimeout(() => {
+      if (!stopped) {
+        setIsPlaying(false);
+        onChordChange?.(-1, null); // Signal end
+      }
+    }, totalDuration * 1000);
+    
+    scheduledTimeouts.push(endTimeoutId);
 
     return () => {
       stopped = true;
-      if (timeoutId) clearTimeout(timeoutId);
-      stopAll();
+      scheduledTimeouts.forEach(id => clearTimeout(id));
+      // Stop all oscillators directly instead of calling stopAll
+      activeOscillatorsRef.current.forEach(osc => {
+        try {
+          osc.stop();
+        } catch (e) {
+          // Already stopped
+        }
+      });
+      activeOscillatorsRef.current = [];
+      setIsPlaying(false);
     };
   }, [resumeAudio, playChord]);
 
