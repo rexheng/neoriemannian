@@ -188,7 +188,7 @@ const NegativeHarmonyPiano = memo(({
 
   return (
     <div className={cn(
-      "flex-1 bg-zinc-950 p-4 sm:p-8 flex flex-col items-center md:justify-center relative overflow-visible md:overflow-hidden",
+      "flex-1 bg-zinc-950 p-4 pt-6 sm:p-8 flex flex-col items-center md:justify-center relative overflow-visible md:overflow-hidden",
       className
     )}>
       {/* Background gradient */}
