@@ -104,13 +104,24 @@ Edge.propTypes = {
 const ChordNode = memo(({ node, isActive, onClick }) => {
   const colors = CHORD_COLOURS[node.type] || CHORD_COLOURS.Unknown;
   
+  const handleClick = useCallback((e) => {
+    e.stopPropagation();
+    onClick?.(node);
+  }, [onClick, node]);
+
+  const handlePointerDown = useCallback((e) => {
+    e.stopPropagation();
+  }, []);
+  
   return (
     <g 
       className={cn(
         "transition-all duration-500 cursor-pointer",
         isActive && "animate-pulse"
       )}
-      onClick={() => onClick?.(node)}
+      onClick={handleClick}
+      onPointerDown={handlePointerDown}
+      style={{ pointerEvents: 'auto' }}
     >
       {/* Glow effect for active node */}
       {isActive && (
@@ -203,7 +214,8 @@ ChordNode.propTypes = {
 const TonnetzVisualiser = memo(({ 
   history, 
   edges, 
-  viewBox, 
+  viewBox,
+  currentChord,
   onViewBoxChange,
   onNodeClick,
   className 
@@ -394,14 +406,19 @@ const TonnetzVisualiser = memo(({
 
         {/* Render nodes */}
         <g className="nodes">
-          {history.map((node, i) => (
-            <ChordNode
-              key={node.id}
-              node={node}
-              isActive={i === history.length - 1}
-              onClick={onNodeClick}
-            />
-          ))}
+          {history.map((node, i) => {
+            // Check if this node matches the current chord
+            const isActive = currentChord && node.notes && 
+              JSON.stringify([...node.notes].sort()) === JSON.stringify([...currentChord].sort());
+            return (
+              <ChordNode
+                key={node.id}
+                node={node}
+                isActive={isActive}
+                onClick={onNodeClick}
+              />
+            );
+          })}
         </g>
       </svg>
     </div>
@@ -417,6 +434,7 @@ TonnetzVisualiser.propTypes = {
     y: PropTypes.number,
     label: PropTypes.string,
     type: PropTypes.string,
+    notes: PropTypes.arrayOf(PropTypes.number),
   })).isRequired,
   edges: PropTypes.arrayOf(PropTypes.shape({
     from: PropTypes.object,
@@ -429,6 +447,7 @@ TonnetzVisualiser.propTypes = {
     w: PropTypes.number,
     h: PropTypes.number,
   }).isRequired,
+  currentChord: PropTypes.arrayOf(PropTypes.number),
   onViewBoxChange: PropTypes.func,
   onNodeClick: PropTypes.func,
   className: PropTypes.string,

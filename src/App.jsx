@@ -44,20 +44,20 @@ const LoadingFallback = () => (
  * Header component with mode switcher
  */
 const Header = React.memo(({ mode, onModeChange }) => (
-  <header className="border-b border-zinc-800 bg-zinc-950/50 backdrop-blur supports-[backdrop-filter]:bg-zinc-950/50 px-4 h-14 flex items-center justify-between z-50 sticky top-0">
-    <div className="flex items-center gap-2 font-bold text-lg tracking-tight">
-      <Sigma className="text-emerald-500" size={20} />
+  <header className="border-b border-zinc-800 bg-zinc-950/50 backdrop-blur supports-[backdrop-filter]:bg-zinc-950/50 px-2 sm:px-4 h-12 sm:h-14 flex items-center justify-between z-50 sticky top-0">
+    <div className="flex items-center gap-1.5 sm:gap-2 font-bold text-base sm:text-lg tracking-tight">
+      <Sigma className="text-emerald-500" size={18} />
       <span className="hidden sm:inline">{STRINGS.APP_TITLE}</span>
     </div>
     
-    <Tabs value={mode} onValueChange={onModeChange} className="w-[240px] sm:w-[300px]">
-      <TabsList className="grid w-full grid-cols-2">
-        <TabsTrigger value="tonnetz">{STRINGS.MODE_TONNETZ}</TabsTrigger>
-        <TabsTrigger value="negative">{STRINGS.MODE_NEGATIVE}</TabsTrigger>
+    <Tabs value={mode} onValueChange={onModeChange} className="w-[180px] sm:w-[240px] md:w-[300px]">
+      <TabsList className="grid w-full grid-cols-2 h-8 sm:h-9">
+        <TabsTrigger value="tonnetz" className="text-xs sm:text-sm">{STRINGS.MODE_TONNETZ}</TabsTrigger>
+        <TabsTrigger value="negative" className="text-xs sm:text-sm">{STRINGS.MODE_NEGATIVE}</TabsTrigger>
       </TabsList>
     </Tabs>
     
-    <div className="w-6 md:w-20" /> {/* Spacer for centering */}
+    <div className="w-4 sm:w-6 md:w-20" /> {/* Spacer for centering */}
   </header>
 ));
 
@@ -82,7 +82,8 @@ const TonnetzMode = React.memo(({
     undo,
     redo,
     reset,
-    setChord
+    setChord,
+    goToNode
   } = chordHistory;
 
   const { playChord, isPlaying, stopAll } = audio;
@@ -104,6 +105,14 @@ const TonnetzMode = React.memo(({
       playChord(newNode.notes);
     }
   }, [applyTransformation, playChord]);
+
+  // Handle clicking on a node in the visualizer
+  const handleNodeClick = useCallback((node) => {
+    const targetNode = goToNode(node);
+    if (targetNode && targetNode.notes) {
+      playChord(targetNode.notes);
+    }
+  }, [goToNode, playChord]);
 
   return (
     <div className="flex flex-1 flex-col md:flex-row w-full h-full min-h-0">
@@ -129,6 +138,8 @@ const TonnetzMode = React.memo(({
           history={history}
           edges={edges}
           viewBox={viewBox}
+          currentChord={normalize(currentChord)}
+          onNodeClick={handleNodeClick}
         />
       </Suspense>
     </div>
@@ -232,20 +243,59 @@ const App = () => {
   /**
    * Handles piano key click in negative harmony mode
    * Only plays the reflected (negative) note, not the input
+   * @param {number} note - Full note value (can be > 11 for higher octaves)
    */
   const handlePianoClick = useCallback((note) => {
-    const negNote = getNegativeNote(note, negKey);
-    setMelodyHistory(prev => [...prev.slice(-9), { input: note, output: negNote }]);
+    // Calculate the base octave (0-11 = octave 4, 12-23 = octave 5, etc.)
+    const baseOctave = 4 + Math.floor(note / 12);
+    const normalizedNote = note % 12;
     
-    // Only play the negative/reflected note
-    audio.playNote(negNote, 4, 0.5);
+    // Get the negative note (always returns 0-11)
+    const negNote = getNegativeNote(normalizedNote, negKey);
+    
+    // Calculate negative note's octave
+    // If the input note is high (above the axis), the negative should be lower, and vice versa
+    // The axis is between the tonic and dominant (e.g., E/Eb for C major)
+    // For simplicity, we keep the negative note in the same general register
+    // but may shift by an octave to keep it musically sensible
+    const axisPoint = (negKey + 3.5) % 12; // Midpoint of axis (between E and Eb for C)
+    const inputDistanceFromAxis = normalizedNote - axisPoint;
+    const outputDistanceFromAxis = negNote - axisPoint;
+    
+    // If input was above axis and output is below (or vice versa), adjust octave
+    let negOctave = baseOctave;
+    if (inputDistanceFromAxis > 0 && outputDistanceFromAxis < 0) {
+      // Input was above axis, output is below - keep same octave
+      negOctave = baseOctave;
+    } else if (inputDistanceFromAxis < 0 && outputDistanceFromAxis > 0) {
+      // Input was below axis, output is above - keep same octave
+      negOctave = baseOctave;
+    }
+    
+    setMelodyHistory(prev => [...prev.slice(-9), { input: note, output: negNote + (negOctave - 4) * 12 }]);
+    
+    // Play the negative/reflected note at the correct octave
+    audio.playNote(negNote, negOctave, 0.5);
   }, [negKey, audio]);
+
+  /**
+   * Handles P/L/R transformation keyboard shortcuts
+   */
+  const handleTransformShortcut = useCallback((type) => {
+    if (mode !== 'tonnetz') return;
+    
+    const newNode = chordHistory.applyTransformation(type);
+    if (newNode && newNode.notes) {
+      audio.playChord(newNode.notes);
+    }
+  }, [mode, chordHistory, audio]);
 
   // Keyboard shortcuts
   useKeyboardShortcuts({
     onNotePlay: mode === 'negative' ? handlePianoClick : undefined,
     onUndo: mode === 'tonnetz' ? chordHistory.undo : undefined,
     onRedo: mode === 'tonnetz' ? chordHistory.redo : undefined,
+    onTransform: mode === 'tonnetz' ? handleTransformShortcut : undefined,
     enabled: true
   });
 

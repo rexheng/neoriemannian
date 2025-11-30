@@ -196,6 +196,32 @@ export const useChordHistory = () => {
     setRedoStack([]);
   }, []);
 
+  /**
+   * Navigate to a specific node in the history (without removing nodes)
+   * @param {Object} targetNode - The node to navigate to
+   * @returns {Object|null} The target node if found
+   */
+  const goToNode = useCallback((targetNode) => {
+    // Find the index of the target node in history
+    const targetIndex = history.findIndex(node => node.id === targetNode.id);
+    if (targetIndex === -1 || targetIndex === history.length - 1) {
+      // Node not found or already at this node
+      return null;
+    }
+
+    const node = history[targetIndex];
+
+    // Just update the current chord and center view - don't modify history/edges
+    setCurrentChord(node.notes);
+    setViewBox(prev => ({
+      ...prev,
+      x: node.x - 150,
+      y: node.y - 150
+    }));
+
+    return node;
+  }, [history]);
+
   return {
     // State
     currentChord,
@@ -214,7 +240,8 @@ export const useChordHistory = () => {
     redo,
     reset,
     setChord,
-    setViewBox
+    setViewBox,
+    goToNode
   };
 };
 

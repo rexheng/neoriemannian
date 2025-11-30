@@ -13,13 +13,15 @@ import { mod } from '../utils/musicUtils';
  * @param {Function} options.onNotePlay - Callback when a note is played
  * @param {Function} options.onUndo - Callback for undo action
  * @param {Function} options.onRedo - Callback for redo action
+ * @param {Function} options.onTransform - Callback for P/L/R transformations
  * @param {boolean} options.enabled - Whether shortcuts are active
  * @returns {Object} Keyboard state and handlers
  */
 export const useKeyboardShortcuts = ({ 
   onNotePlay, 
   onUndo, 
-  onRedo, 
+  onRedo,
+  onTransform,
   enabled = true 
 }) => {
   const pressedKeysRef = useRef(new Set());
@@ -67,6 +69,18 @@ export const useKeyboardShortcuts = ({
     }
   }, [onUndo, onRedo]);
 
+  /**
+   * Handles P/L/R transformation shortcuts
+   * @param {KeyboardEvent} e - Keyboard event
+   */
+  const handleTransform = useCallback((e) => {
+    const key = e.key.toUpperCase();
+    if (key === 'P' || key === 'L' || key === 'R') {
+      e.preventDefault();
+      onTransform?.(key);
+    }
+  }, [onTransform]);
+
   useEffect(() => {
     if (!enabled) return;
 
@@ -78,6 +92,9 @@ export const useKeyboardShortcuts = ({
       
       // Handle undo/redo first
       handleUndoRedo(e);
+      
+      // Handle P/L/R transformations
+      handleTransform(e);
       
       // Handle note input
       handleNoteInput(e);
@@ -94,7 +111,7 @@ export const useKeyboardShortcuts = ({
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
     };
-  }, [enabled, handleNoteInput, handleUndoRedo]);
+  }, [enabled, handleNoteInput, handleUndoRedo, handleTransform]);
 
   return {
     pressedKeys: pressedKeysRef.current

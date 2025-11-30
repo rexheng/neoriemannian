@@ -3,15 +3,23 @@
  * @module components/NegativeHarmonyPiano
  */
 
-import React, { memo, useCallback, useMemo } from 'react';
+import React, { memo, useCallback, useMemo, useState } from 'react';
 import PropTypes from 'prop-types';
 import { cn } from '../utils/cn';
 import { KEYBOARD_KEYS, NOTES, STRINGS } from '../constants';
-import { mod, getNoteLabel, getNegativeNote } from '../utils/musicUtils';
+import { mod, getNoteLabel, getNegativeNote, getNoteLabelWithOctave } from '../utils/musicUtils';
 import { Card, CardContent } from './ui/Card';
 import Badge from './ui/Badge';
 import { Separator } from './ui/Form';
-import { Piano as PianoIcon } from 'lucide-react';
+import { Piano as PianoIcon, ChevronDown, ChevronUp } from 'lucide-react';
+
+/**
+ * Extended keyboard keys for 2 octaves
+ */
+const KEYBOARD_KEYS_2_OCTAVES = [
+  ...KEYBOARD_KEYS.slice(0, -1), // First octave (without the final C)
+  ...KEYBOARD_KEYS.map(k => ({ ...k, note: k.note + 12, label: k.label })) // Second octave
+];
 
 /**
  * Individual piano key component
@@ -32,8 +40,8 @@ const PianoKey = memo(({
     const base = "relative rounded-b-md transition-all duration-100 cursor-pointer select-none touch-manipulation";
     
     const typeClasses = keyData.type === 'white'
-      ? "w-8 sm:w-10 md:w-12 h-28 sm:h-32 md:h-40 -mx-[1px] sm:-mx-[2px] z-0 bg-zinc-100 border-b-4 border-zinc-300 hover:bg-zinc-200 active:bg-zinc-200 active:scale-y-[0.98]"
-      : "w-5 sm:w-6 md:w-8 h-16 sm:h-20 md:h-24 -mx-[10px] sm:-mx-[12px] md:-mx-[16px] z-10 bg-zinc-900 border-b-4 border-black hover:bg-zinc-800 active:bg-zinc-800 active:scale-y-[0.98]";
+      ? "w-10 sm:w-10 md:w-12 h-32 sm:h-32 md:h-40 -mx-[1px] sm:-mx-[2px] z-0 bg-zinc-100 border-b-4 border-zinc-300 hover:bg-zinc-200 active:bg-zinc-200 active:scale-y-[0.98]"
+      : "w-6 sm:w-6 md:w-8 h-20 sm:h-20 md:h-24 -mx-[12px] sm:-mx-[12px] md:-mx-[16px] z-10 bg-zinc-900 border-b-4 border-black hover:bg-zinc-800 active:bg-zinc-800 active:scale-y-[0.98]";
 
     const stateClasses = cn(
       isInput && !isOutput && "!bg-blue-500 !border-blue-700 mt-1 shadow-[inset_0_-5px_10px_rgba(0,0,0,0.3)] scale-[0.98]",
@@ -99,13 +107,14 @@ const MirrorDisplay = memo(({ inputNote, outputNote }) => {
         {/* Input display */}
         <div className="flex flex-col items-center gap-4">
           <div className={cn(
-            "w-24 h-24 sm:w-32 sm:h-32 rounded-2xl flex items-center justify-center",
-            "text-4xl sm:text-5xl font-bold shadow-2xl transition-all duration-300 border-4",
+            "w-24 h-24 sm:w-32 sm:h-32 rounded-2xl flex flex-col items-center justify-center",
+            "font-bold shadow-2xl transition-all duration-300 border-4",
             hasNotes 
               ? 'bg-blue-500/10 text-blue-400 border-blue-500/50 shadow-[0_0_30px_rgba(59,130,246,0.2)] scale-105' 
               : 'bg-zinc-900 text-zinc-700 border-zinc-800'
           )}>
-            {hasNotes ? getNoteLabel(inputNote) : '?'}
+            <span className="text-4xl sm:text-5xl">{hasNotes ? getNoteLabel(inputNote) : '?'}</span>
+            {hasNotes && <span className="text-sm text-blue-400/70">{4 + Math.floor(inputNote / 12)}</span>}
           </div>
           <span className="text-xs uppercase tracking-widest text-blue-500 font-bold">
             {STRINGS.INPUT}
@@ -119,13 +128,14 @@ const MirrorDisplay = memo(({ inputNote, outputNote }) => {
         {/* Output display */}
         <div className="flex flex-col items-center gap-4">
           <div className={cn(
-            "w-24 h-24 sm:w-32 sm:h-32 rounded-2xl flex items-center justify-center",
-            "text-4xl sm:text-5xl font-bold shadow-2xl transition-all duration-300 border-4",
+            "w-24 h-24 sm:w-32 sm:h-32 rounded-2xl flex flex-col items-center justify-center",
+            "font-bold shadow-2xl transition-all duration-300 border-4",
             hasNotes 
               ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/50 shadow-[0_0_30px_rgba(16,185,129,0.2)] scale-105' 
               : 'bg-zinc-900 text-zinc-700 border-zinc-800'
           )}>
-            {hasNotes ? getNoteLabel(outputNote) : '?'}
+            <span className="text-4xl sm:text-5xl">{hasNotes ? getNoteLabel(outputNote) : '?'}</span>
+            {hasNotes && <span className="text-sm text-emerald-400/70">{4 + Math.floor(outputNote / 12)}</span>}
           </div>
           <span className="text-xs uppercase tracking-widest text-emerald-500 font-bold">
             {STRINGS.REFLECTION}
@@ -152,10 +162,18 @@ const NegativeHarmonyPiano = memo(({
   onPianoClick,
   className 
 }) => {
+  const [isExpanded, setIsExpanded] = useState(false);
+  
   // Get last played notes
   const lastEntry = useMemo(() => 
     melodyHistory.length > 0 ? melodyHistory[melodyHistory.length - 1] : null,
     [melodyHistory]
+  );
+
+  // Get the keyboard keys based on expand state
+  const activeKeys = useMemo(() => 
+    isExpanded ? KEYBOARD_KEYS_2_OCTAVES : KEYBOARD_KEYS,
+    [isExpanded]
   );
 
   // Determine which keys are highlighted
@@ -223,23 +241,49 @@ const NegativeHarmonyPiano = memo(({
         />
 
         {/* Interactive Piano */}
-        <div className="flex justify-center select-none pb-6 overflow-x-auto">
-          <div className="flex">
-            {KEYBOARD_KEYS.map((k, i) => {
-              const { isInput, isOutput } = getKeyState(k.note);
-              
-              return (
-                <PianoKey
-                  key={i}
-                  keyData={k}
-                  isInput={isInput}
-                  isOutput={isOutput}
-                  onClick={onPianoClick}
-                  isFirst={i === 0}
-                  isLast={i === KEYBOARD_KEYS.length - 1}
-                />
-              );
-            })}
+        <div className="space-y-3">
+          {/* Expand/Collapse toggle */}
+          <div className="flex justify-center">
+            <button
+              onClick={() => setIsExpanded(!isExpanded)}
+              className={cn(
+                "flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all",
+                "bg-zinc-900 border border-zinc-700 hover:bg-zinc-800 hover:border-zinc-600",
+                isExpanded ? "text-emerald-400" : "text-zinc-400"
+              )}
+            >
+              {isExpanded ? (
+                <>
+                  <ChevronUp size={16} />
+                  Collapse to 1 Octave
+                </>
+              ) : (
+                <>
+                  <ChevronDown size={16} />
+                  Expand to 2 Octaves
+                </>
+              )}
+            </button>
+          </div>
+
+          <div className="flex justify-center select-none pb-6 overflow-x-auto">
+            <div className="flex">
+              {activeKeys.map((k, i) => {
+                const { isInput, isOutput } = getKeyState(k.note);
+                
+                return (
+                  <PianoKey
+                    key={`${k.note}-${i}`}
+                    keyData={k}
+                    isInput={isInput}
+                    isOutput={isOutput}
+                    onClick={onPianoClick}
+                    isFirst={i === 0}
+                    isLast={i === activeKeys.length - 1}
+                  />
+                );
+              })}
+            </div>
           </div>
         </div>
 
@@ -255,9 +299,9 @@ const NegativeHarmonyPiano = memo(({
                   i === melodyHistory.slice(-8).length - 1 && "ring-1 ring-zinc-600"
                 )}
               >
-                <span className="text-blue-400">{getNoteLabel(entry.input)}</span>
+                <span className="text-blue-400">{getNoteLabelWithOctave(entry.input)}</span>
                 <span className="text-zinc-600">→</span>
-                <span className="text-emerald-400">{getNoteLabel(entry.output)}</span>
+                <span className="text-emerald-400">{getNoteLabelWithOctave(entry.output)}</span>
               </div>
             ))}
           </div>

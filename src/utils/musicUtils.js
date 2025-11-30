@@ -45,6 +45,17 @@ export const arraysEqual = (a, b) => JSON.stringify(normalize(a)) === JSON.strin
  */
 export const getNoteLabel = (n) => NOTES[mod(n)];
 
+/**
+ * Gets the note name with octave for a given note value
+ * @param {number} n - Note value (can be > 11 for higher octaves)
+ * @param {number} [baseOctave=4] - The base octave for note 0
+ * @returns {string} Note name with octave (e.g., 'C4', 'F#5', 'Bb3')
+ */
+export const getNoteLabelWithOctave = (n, baseOctave = 4) => {
+  const octave = baseOctave + Math.floor(n / 12);
+  return `${NOTES[mod(n)]}${octave}`;
+};
+
 // ============================================================================
 // CHORD IDENTIFICATION
 // ============================================================================

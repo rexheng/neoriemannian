@@ -30,14 +30,15 @@ const KeySelector = memo(({ selectedKey, onKeyChange }) => (
     <h3 className="text-sm font-medium text-zinc-400 mb-3 uppercase tracking-wider flex items-center gap-2">
       <Calculator size={14} /> {STRINGS.KEY_CENTER}
     </h3>
-    <div className="grid grid-cols-4 sm:grid-cols-6 gap-2">
+    <div className="grid grid-cols-6 sm:grid-cols-6 gap-1.5 sm:gap-2">
       {NOTES.map((note, i) => (
         <button
           key={note}
           onClick={() => onKeyChange(i)}
           className={cn(
-            "h-9 rounded-md text-xs font-bold border transition-all duration-200",
+            "h-10 sm:h-9 rounded-md text-xs font-bold border transition-all duration-200",
             "focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-zinc-950",
+            "active:scale-95",
             selectedKey === i
               ? "bg-emerald-600 border-emerald-500 text-white shadow-[0_0_15px_rgba(5,150,105,0.4)]"
               : "bg-zinc-900 border-zinc-800 text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200"
@@ -258,11 +259,11 @@ const ChordProgressionConverter = memo(({
 
           {/* Playback buttons */}
           {progOutput.length > 0 && (
-            <div className="flex gap-2">
+            <div className="flex flex-col sm:flex-row gap-2">
               <Button
                 onClick={handlePlayOriginal}
                 variant={isPlayingOriginal ? "destructive" : "secondary"}
-                className="flex-1"
+                className="flex-1 h-11 sm:h-10"
                 disabled={!onPlayOriginal}
               >
                 {isPlayingOriginal ? <Square size={14} className="mr-2" /> : <Play size={14} className="mr-2" />}
@@ -271,7 +272,7 @@ const ChordProgressionConverter = memo(({
               <Button
                 onClick={handlePlayNegative}
                 variant={isPlayingNegative ? "destructive" : "outline"}
-                className="flex-1 border-emerald-700 text-emerald-400 hover:bg-emerald-950/50"
+                className="flex-1 h-11 sm:h-10 border-emerald-700 text-emerald-400 hover:bg-emerald-950/50"
                 disabled={!onPlayNegative}
               >
                 {isPlayingNegative ? <Square size={14} className="mr-2" /> : <Play size={14} className="mr-2" />}
