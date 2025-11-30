@@ -334,16 +334,6 @@ const TonnetzVisualiser = memo(({
         </Badge>
       </div>
 
-      {/* Center button */}
-      <div className="absolute top-3 left-1/2 -translate-x-1/2 sm:top-4 z-10">
-        <button
-          onClick={centerOnCurrent}
-          className="px-3 py-1.5 text-xs bg-zinc-900/80 backdrop-blur text-zinc-400 border border-zinc-800 rounded-md hover:bg-zinc-800 hover:text-zinc-200 transition-colors"
-        >
-          Center View
-        </button>
-      </div>
-
       {/* Legend */}
       <div className="absolute top-3 right-3 sm:top-4 sm:right-4 z-10 flex flex-wrap gap-1.5 sm:gap-2 max-w-[200px] sm:max-w-none justify-end">
         {Object.entries(CHORD_COLOURS).slice(0, 4).map(([type, colors]) => (
