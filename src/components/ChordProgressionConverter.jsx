@@ -213,7 +213,7 @@ const ChordProgressionConverter = memo(({
 
   return (
     <div className={cn(
-      "w-full md:w-[320px] lg:w-[380px] xl:w-[420px] bg-zinc-950 border-r border-zinc-800 p-4 sm:p-6 overflow-y-auto shrink-0",
+      "w-full md:w-[320px] lg:w-[380px] xl:w-[420px] bg-zinc-950 border-r border-zinc-800 p-4 sm:p-6 md:overflow-y-auto md:shrink-0",
       className
     )}>
       <div className="space-y-6 sm:space-y-8">
